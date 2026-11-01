@@ -17,35 +17,44 @@ CATEGORIES = [
 ]
 
 
+# Small schemas prevent circular serialization
+class ExerciseSummarySchema(Schema):
+    id = fields.Int(dump_only=True)
+    name = fields.Str()
+    category = fields.Str()
+    equipment_needed = fields.Bool()
+
+
+class WorkoutSummarySchema(Schema):
+    id = fields.Int(dump_only=True)
+    date = fields.Date()
+    duration_minutes = fields.Int()
+    notes = fields.Str(allow_none=True)
+
+
+# Join table schema
 class WorkoutExerciseSchema(Schema):
     id = fields.Int(dump_only=True)
 
     workout_id = fields.Int(dump_only=True)
     exercise_id = fields.Int(dump_only=True)
 
-    reps = fields.Int(
-        allow_none=True,
-        validate=validate.Range(min=1)
+    reps = fields.Int(allow_none=True)
+    sets = fields.Int(allow_none=True)
+    duration_seconds = fields.Int(allow_none=True)
+
+    exercise = fields.Nested(
+        ExerciseSummarySchema,
+        dump_only=True
     )
 
-    sets = fields.Int(
-        allow_none=True,
-        validate=validate.Range(min=1)
+    workout = fields.Nested(
+        WorkoutSummarySchema,
+        dump_only=True
     )
 
-    duration_seconds = fields.Int(
-        allow_none=True,
-        validate=validate.Range(min=1)
-    )
 
-    @validates_schema
-    def validate_training_data(self, data, **kwargs):
-        if data.get("reps") is None and data.get("duration_seconds") is None:
-            raise ValidationError(
-                "Provide either reps or duration_seconds."
-            )
-
-
+# Exercise schema
 class ExerciseSchema(Schema):
     id = fields.Int(dump_only=True)
 
@@ -68,6 +77,7 @@ class ExerciseSchema(Schema):
     )
 
 
+# Workout schema
 class WorkoutSchema(Schema):
     id = fields.Int(dump_only=True)
 
@@ -80,7 +90,8 @@ class WorkoutSchema(Schema):
 
     notes = fields.Str(
         allow_none=True,
-        load_default=None
+        load_default=None,
+        validate=validate.Length(max=2000)
     )
 
     workout_exercises = fields.Nested(
@@ -89,16 +100,8 @@ class WorkoutSchema(Schema):
         dump_only=True
     )
 
-    @validates_schema
-    def validate_notes(self, data, **kwargs):
-        notes = data.get("notes")
 
-        if notes is not None and len(notes) > 2000:
-            raise ValidationError(
-                {"notes": ["Notes cannot exceed 2000 characters."]}
-            )
-
-
+# Input schema for adding an exercise to a workout
 class WorkoutExerciseInputSchema(Schema):
     reps = fields.Int(
         allow_none=True,
@@ -120,7 +123,10 @@ class WorkoutExerciseInputSchema(Schema):
 
     @validates_schema
     def validate_training_data(self, data, **kwargs):
-        if data.get("reps") is None and data.get("duration_seconds") is None:
+        if (
+            data.get("reps") is None
+            and data.get("duration_seconds") is None
+        ):
             raise ValidationError(
                 "Provide either reps or duration_seconds."
             )
